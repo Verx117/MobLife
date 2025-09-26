@@ -1,13 +1,4 @@
 //export type TileType = "plains" | "hill" | "mountain" | "river" | "sea";
-
-//export const tileColors: Record<TileType, string> = {
-//  plains: "#a8d08d",
-//  hill: "#4D7D23",
-//  mountain: "#8b8b8b",
-//  river: "#5dade2",
-//  sea: "#2874a6",
-//};
-
 export const TileTypes = {
   Plains: "Plains",
   Hills: "Hills",

@@ -1,5 +1,7 @@
 import { useState } from "react";
 import GamePage from "./GamePage";
+import { generateMap, type Tile } from "../utils/mapGenerator";
+import { tileColors } from "../assets/tileType";
 
 export default function MapSetupPage() {
   const [started, setStarted] = useState(false);
@@ -9,6 +11,13 @@ export default function MapSetupPage() {
   const [cities, setCities] = useState(3);
   const [towns, setTowns] = useState(7);
   const [dungeons, setDungeons] = useState(4);
+
+  const [map, setMap] = useState<Tile[][] | null>(null);
+
+  const handleGenerate = () => {
+    const newMap = generateMap(height, width);
+    setMap(newMap);
+  };
 
   if (started) {
     return (
@@ -26,15 +35,23 @@ export default function MapSetupPage() {
 
   return (
     <div className="flex h-screen flex-col">
-      {/* Sidebar sopra */}
+      {/* Barra sopra */}
       <div className="flex h-16 items-center bg-gray-800 p-4 text-white">
         <h1 className="text-xl font-bold">Setup Mappa</h1>
       </div>
 
-      <div className="flex flex-1">
+      <div className="flex flex-1 overflow-hidden">
         {/* Sidebar sinistra */}
         <div className="w-64 bg-gray-900 p-4 text-white">
           <p className="mb-4 text-lg font-semibold">Azioni</p>
+
+          <button
+            onClick={handleGenerate}
+            className="mb-4 w-full rounded bg-blue-600 px-4 py-2 hover:bg-blue-500"
+          >
+            Genera mappa
+          </button>
+
           <button
             onClick={() => setStarted(true)}
             className="w-full rounded bg-green-600 px-4 py-2 hover:bg-green-500"
@@ -44,7 +61,7 @@ export default function MapSetupPage() {
         </div>
 
         {/* Centro */}
-        <div className="flex-1 p-6">
+        <div className="flex-1 p-6 overflow-auto">
           <div className="space-y-6">
             <div>
               <h2 className="mb-2 font-bold">Size</h2>
@@ -91,10 +108,36 @@ export default function MapSetupPage() {
               </div>
             </div>
           </div>
+
+          {/* Render della mappa se esiste */}
+          {map && (
+            <div className="mt-8 flex justify-center">
+              <div
+                className="grid"
+                style={{
+                  gridTemplateColumns: `repeat(${width}, 20px)`,
+                  gridTemplateRows: `repeat(${height}, 20px)`,
+                  gap: "0px",
+                }}
+              >
+                {map.flat().map((tile, i) => (
+                  <div
+                    key={i}
+                    className="border"
+                    style={{
+                      backgroundColor: tileColors[tile.type],
+                      width: 20,
+                      height: 20,
+                    }}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Sidebar sotto */}
+      {/* Barra sotto */}
       <div className="h-16 bg-gray-800"></div>
     </div>
   );

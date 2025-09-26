@@ -19,7 +19,7 @@ export default function MapGrid({ map }: MapGridProps) {
           className="w-6 h-6"
           style={{ backgroundColor: tileColors[tile.type] }}
           title={`${tile.type} ${
-            tile.fixedEntity ? `(${tile.fixedEntity})` : ""
+            tile.fixedEntityId ? `(${tile.fixedEntityId})` : ""
           }`}
         />
       ))}

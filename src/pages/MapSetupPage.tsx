@@ -1,7 +1,11 @@
 import { useState } from "react";
 import GamePage from "./GamePage";
-import { generateMap, type Tile } from "../utils/mapGenerator";
-import { tileColors } from "../assets/tileType";
+import {
+  generateMap,
+  placeFixedEntities,
+  type Tile,
+} from "../utils/mapGenerator";
+import { tileColors, type FixedEntity } from "../assets/tileType";
 
 export default function MapSetupPage() {
   const [started, setStarted] = useState(false);
@@ -12,14 +16,21 @@ export default function MapSetupPage() {
   const [towns, setTowns] = useState(7);
   const [dungeons, setDungeons] = useState(4);
 
+  const [mode, setMode] = useState<"normal" | "islands" | "continents">(
+    "normal"
+  );
+
   const [map, setMap] = useState<Tile[][] | null>(null);
+  const [entities, setEntities] = useState<Record<string, FixedEntity>>({});
 
   const handleGenerate = () => {
     const newMap = generateMap(height, width);
+    const ents = placeFixedEntities(newMap, { cities, towns, dungeons });
     setMap(newMap);
+    setEntities(ents);
   };
 
-  if (started) {
+  if (started && map) {
     return (
       <GamePage
         config={{
@@ -29,6 +40,8 @@ export default function MapSetupPage() {
           towns,
           dungeons,
         }}
+        map={map}
+        entities={entities}
       />
     );
   }
@@ -54,7 +67,8 @@ export default function MapSetupPage() {
 
           <button
             onClick={() => setStarted(true)}
-            className="w-full rounded bg-green-600 px-4 py-2 hover:bg-green-500"
+            className="w-full rounded bg-green-600 px-4 py-2 hover:bg-green-500 disabled:opacity-50"
+            disabled={!map}
           >
             Inizia Partita
           </button>
@@ -62,7 +76,7 @@ export default function MapSetupPage() {
 
         {/* Centro */}
         <div className="flex-1 p-6 overflow-auto">
-          <div className="space-y-6">
+          <div className="gap-6 flex flex-row">
             <div>
               <h2 className="mb-2 font-bold">Size</h2>
               <div className="flex gap-4">
@@ -79,28 +93,50 @@ export default function MapSetupPage() {
                   className="w-24 rounded border px-2"
                 />
               </div>
+              <div className="mt-6">
+                <h2 className="mb-2 font-bold">Terrain form</h2>
+                <select
+                  value={mode}
+                  onChange={(e) =>
+                    setMode(
+                      e.target.value as "normal" | "islands" | "continents"
+                    )
+                  }
+                  className="w-full rounded border px-2 py-1 text-black"
+                >
+                  <option value="normal">Normal</option>
+                  <option value="islands">Islands</option>
+                  <option value="continents">Continents</option>
+                </select>
+              </div>
             </div>
 
             <div>
               <h2 className="mb-2 font-bold">Rules</h2>
               <div className="flex flex-col gap-2">
+                <label htmlFor="cities">Cities</label>
                 <input
                   type="number"
                   value={cities}
+                  id="cities"
                   onChange={(e) => setCities(Number(e.target.value))}
                   className="w-40 rounded border px-2"
                   placeholder="Number of Cities"
                 />
+                <label htmlFor="towns">Towns</label>
                 <input
                   type="number"
                   value={towns}
+                  id="towns"
                   onChange={(e) => setTowns(Number(e.target.value))}
                   className="w-40 rounded border px-2"
                   placeholder="Number of Towns"
                 />
+                <label htmlFor="dungeons">Dungeons</label>
                 <input
                   type="number"
                   value={dungeons}
+                  id="dungeons"
                   onChange={(e) => setDungeons(Number(e.target.value))}
                   className="w-40 rounded border px-2"
                   placeholder="Number of Dungeons"
@@ -113,24 +149,40 @@ export default function MapSetupPage() {
           {map && (
             <div className="mt-8 flex justify-center">
               <div
-                className="grid"
+                className={`grid`}
                 style={{
-                  gridTemplateColumns: `repeat(${width}, 20px)`,
-                  gridTemplateRows: `repeat(${height}, 20px)`,
-                  gap: "0px",
+                  gridTemplateColumns: `repeat(${width}, minmax(0, 1fr))`,
+                  gridTemplateRows: `repeat(${height}, minmax(0, 1fr))`,
                 }}
               >
-                {map.flat().map((tile, i) => (
-                  <div
-                    key={i}
-                    className="border"
-                    style={{
-                      backgroundColor: tileColors[tile.type],
-                      width: 20,
-                      height: 20,
-                    }}
-                  />
-                ))}
+                {map.flat().map((tile, i) => {
+                  const entityId = tile.fixedEntityId;
+                  const entity = entityId ? entities[entityId] : null;
+
+                  return (
+                    <div
+                      key={i}
+                      className="border border-black flex items-center justify-center text-[10px] font-bold"
+                      style={{
+                        backgroundColor: tileColors[tile.type],
+                        width: "20px",
+                        height: "20px",
+                        color: "white",
+                      }}
+                      title={
+                        entity ? `${entity.type} (${entity.id})` : tile.type
+                      }
+                    >
+                      {entity
+                        ? entity.type === "city"
+                          ? "C"
+                          : entity.type === "town"
+                          ? "T"
+                          : "D"
+                        : ""}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}

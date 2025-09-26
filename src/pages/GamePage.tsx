@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { generateMap, type Tile } from "../utils/mapGenerator";
-import { tileColors } from "../assets/tileType";
+import { tileColors, type FixedEntity } from "../assets/tileType";
 
 interface GamePageProps {
   config: {
@@ -10,12 +10,14 @@ interface GamePageProps {
     towns: number;
     dungeons: number;
   };
+  map?: Tile[][];
+  entities?: Record<string, FixedEntity>;
 }
 
-export default function GamePage({ config }: GamePageProps) {
+export default function GamePage({ config, map: initialMap }: GamePageProps) {
   const map: Tile[][] = useMemo(
-    () => generateMap(config.height, config.width),
-    [config]
+    () => initialMap ?? generateMap(config.height, config.width),
+    [initialMap, config]
   );
 
   return (

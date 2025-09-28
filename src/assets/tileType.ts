@@ -21,6 +21,16 @@ export const tileColors: Record<TileType, string> = {
   Desert: "#E0D42F",
 };
 
+export const tileCosts: Record<TileType, number> = {
+  Plains: 10,
+  Hills: 30,
+  Mountains: 40,
+  River: 35,
+  Sea: 50,
+  Forest: 25,
+  Desert: 15,
+};
+
 // ENTITÀ FISSE
 
 export type FixedEntityType = "city" | "town" | "dungeon";

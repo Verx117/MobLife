@@ -1,16 +1,12 @@
+import type { Mission } from "./tileType";
+
 export type MobileEntityType = "hero" | "adventurer" | "civilian" | "monsters";
 
 export interface BaseMobileEntity {
   id: string;
   type: MobileEntityType;
   position: { y: number; x: number };
-  mission?: {
-    target: { y: number; x: number };
-    origin?: { y: number; x: number }; // dungeon di partenza
-    path: [number, number][]; // percorso calcolato a priori
-    progress: number; // quanti tick mancanti per avanzare
-    duration?: number; // durata totale della missione
-  };
+  missions: Mission[]; // elenco missioni dell entità mobile
 }
 
 export interface HeroParty extends BaseMobileEntity {

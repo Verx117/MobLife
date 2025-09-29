@@ -47,5 +47,5 @@ export function bfsPathToTarget(
     }
   }
 
-  return null; // nessun percorso trovato
+  return null;
 }

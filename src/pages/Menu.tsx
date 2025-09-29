@@ -1,16 +1,13 @@
-import { useState } from "react";
-import MapSetupPage from "./MapSetupPage";
+interface MenuProps {
+  onStart: () => void;
+}
 
-export default function Menu() {
-  const [page, setPage] = useState<"menu" | "setup">("menu");
-
-  if (page === "setup") return <MapSetupPage />;
-
+export default function Menu({ onStart }: MenuProps) {
   return (
     <div className="flex h-screen w-screen items-center justify-center bg-gray-900">
       <div className="flex flex-col gap-4 rounded-2xl bg-gray-800 p-8 shadow-lg">
         <button
-          onClick={() => setPage("setup")}
+          onClick={onStart}
           className="rounded-lg bg-green-600 px-6 py-3 text-white hover:bg-green-500"
         >
           Inizia partita

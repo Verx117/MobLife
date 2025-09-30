@@ -1,16 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
 import { generateMap, type Tile } from "../utils/mapGenerator";
-import {
-  tileColors,
-  tileCosts,
-  type FixedEntity,
-  type TileType,
-  MissionCatalog,
-  type Mission,
-} from "../assets/tileType";
+import { tileColors, type FixedEntity } from "../assets/tileType";
 import type { MobileEntity } from "../assets/entitiesType";
-import { bfsPathToTarget } from "../utils/mapUtils";
+
 import SidebarBottom from "../components/Sidebarbottom";
+import {
+  assignMissionIfNeeded,
+  assignMissionsToFixedEntities,
+} from "../system/missionSystem";
+import { updateMovement } from "../system/movementSystem";
+import { createMobileEntities } from "../system/entityFactory";
 
 interface GamePageProps {
   config: {
@@ -27,7 +26,7 @@ interface GamePageProps {
 export default function GamePage({
   config,
   map: initialMap,
-  entities = {},
+  entities: initialEntities = {},
 }: GamePageProps) {
   const map: Tile[][] = useMemo(
     () => initialMap ?? generateMap(config.height, config.width),
@@ -39,76 +38,31 @@ export default function GamePage({
     x: number;
   } | null>(null);
   const [time, setTime] = useState(0);
-  const [isRunning, setIsRunning] = useState(true); // controllo pausa/play
+  const [isRunning, setIsRunning] = useState(true);
   const [mobileEntities, setMobileEntities] = useState<
     Record<string, MobileEntity>
   >({});
+  const [fixedEntities, setFixedEntities] =
+    useState<Record<string, FixedEntity>>(initialEntities);
 
   // Tick globale
   useEffect(() => {
     if (!isRunning) return;
-
     const interval = setInterval(() => setTime((t) => t + 1), 1000);
     return () => clearInterval(interval);
   }, [isRunning]);
 
   // Inizializzazione entità mobili al tick 1
   useEffect(() => {
-    if (time === 1 && entities) {
-      const newEntities: Record<string, MobileEntity> = {};
-
-      const firstCity = Object.values(entities).find((e) => e.type === "city");
-      if (firstCity) {
-        const id = "hero-party-1";
-        newEntities[id] = {
-          id,
-          type: "hero",
-          position: firstCity.position,
-          missions: [],
-        };
-      }
-
-      Object.values(entities)
-        .filter((e) => e.type === "city")
-        .forEach((city, i) => {
-          const id = `adventurer-party-${i + 1}`;
-          newEntities[id] = {
-            id,
-            type: "adventurer",
-            position: city.position,
-            missions: [],
-          };
-        });
-
-      Object.values(entities)
-        .filter((e) => e.type === "town")
-        .forEach((town, i) => {
-          const id = `civilian-party-${i + 1}`;
-          newEntities[id] = {
-            id,
-            type: "civilian",
-            position: town.position,
-            missions: [],
-          };
-        });
-
-      Object.values(entities)
-        .filter((e) => e.type === "dungeon")
-        .forEach((dungeon, i) => {
-          for (let j = 0; j < 2; j++) {
-            const id = `monsters-party-${i + 1}-${j + 1}`;
-            newEntities[id] = {
-              id,
-              type: "monsters",
-              position: dungeon.position,
-              missions: [],
-            };
-          }
-        });
-
-      setMobileEntities(newEntities);
+    if (time === 1 && initialEntities) {
+      setMobileEntities(createMobileEntities(initialEntities));
     }
-  }, [time, entities]);
+  }, [time, initialEntities]);
+
+  // Generazione missioni fisse ogni 30 tick
+  useEffect(() => {
+    setFixedEntities((prev) => assignMissionsToFixedEntities(prev, map, time));
+  }, [time, map]);
 
   // Movimento e missioni con fasi pickup/execute/return
   useEffect(() => {
@@ -116,153 +70,26 @@ export default function GamePage({
       const next: Record<string, MobileEntity> = {};
 
       Object.values(prev).forEach((m) => {
-        // Copia l'entità e assicura che missions sia sempre un array
-        const newM: MobileEntity = {
-          ...m,
-          missions:
-            m.missions?.map((ms) => ({ ...ms, phase: ms.phase ?? "pickup" })) ??
-            [],
-        };
+        let updated = { ...m, missions: m.missions ?? [] };
 
-        // Controlla se c'è una missione attiva
-        const hasActiveMission = newM.missions.some((ms) => !ms.completedAt);
+        // 1. Assegnazione missioni dai giver
+        updated = assignMissionIfNeeded(updated, fixedEntities, map, time);
 
-        // Assegna missione solo se non ce n'è una attiva e ogni 30 tick
-        if (time % 30 === 0 && !hasActiveMission) {
-          const giver = Object.values(entities).find((e) =>
-            Object.values(MissionCatalog).some(
-              (mission) =>
-                mission.allowedGivers.includes(e.type) &&
-                mission.allowedRecipients.includes(newM.type)
-            )
-          );
+        // 2. Movimento missioni attive
+        updated = updateMovement(updated, fixedEntities, map, time);
 
-          if (giver) {
-            const missionTemplate = Object.values(MissionCatalog).find(
-              (mission) =>
-                mission.allowedGivers.includes(giver.type) &&
-                mission.allowedRecipients.includes(newM.type)
-            );
-
-            if (missionTemplate) {
-              const possibleTargets = Object.values(entities).filter(
-                (e) => e.type === "town" || e.type === "city"
-              );
-
-              if (possibleTargets.length > 0) {
-                const target =
-                  possibleTargets[
-                    Math.floor(Math.random() * possibleTargets.length)
-                  ];
-
-                const path = bfsPathToTarget(
-                  map,
-                  map.length,
-                  map[0].length,
-                  newM.position,
-                  new Set([`${target.position.y},${target.position.x}`]),
-                  new Set(Object.keys(tileCosts) as TileType[])
-                );
-
-                if (path) {
-                  const mission: Mission & {
-                    phase?: "pickup" | "execute" | "return";
-                  } = {
-                    id: `${missionTemplate.type}-${Date.now()}`,
-                    type: missionTemplate.type,
-                    giverId: giver.id,
-                    target: target.position,
-                    duration: missionTemplate.baseDuration,
-                    assignedTo: newM.id,
-                    path,
-                    progress: 0,
-                    phase: "pickup", // fase iniziale: pickup dal giver
-                  };
-
-                  newM.missions.push(mission);
-
-                  const giverEntity = entities[giver.id];
-                  if (giverEntity) {
-                    giverEntity.missions ??= [];
-                    giverEntity.missions.push(mission);
-                  }
-                }
-              }
-            }
-          }
-        }
-
-        // Movimento missioni attive
-        newM.missions.forEach((mission) => {
-          if (mission.completedAt || !mission.path || mission.path.length === 0)
-            return;
-
-          // Determina destinazione in base alla fase
-          if (mission.phase === "pickup" || mission.phase === "return") {
-            const giver = entities[mission.giverId];
-            if (!giver) return;
-          }
-
-          const [ny, nx] = mission.path[0];
-          const cost = tileCosts[map[ny][nx].type] ?? 1;
-          mission.progress = (mission.progress ?? 0) + 1;
-
-          if (mission.progress >= cost) {
-            newM.position = { y: ny, x: nx };
-            mission.path = mission.path.slice(1);
-            mission.progress = 0;
-
-            // Quando arriva a destinazione cambia fase
-            if (mission.path.length === 0) {
-              if (mission.phase === "pickup") {
-                // Ora va al target della missione
-                mission.phase = "execute";
-                const pathToTarget = bfsPathToTarget(
-                  map,
-                  map.length,
-                  map[0].length,
-                  newM.position,
-                  new Set([`${mission.target.y},${mission.target.x}`]),
-                  new Set(Object.keys(tileCosts) as TileType[])
-                );
-                mission.path = pathToTarget ?? [];
-              } else if (mission.phase === "execute") {
-                // Missione completata, torna dal giver
-                mission.phase = "return";
-                const giver = entities[mission.giverId];
-                if (giver) {
-                  const pathToGiver = bfsPathToTarget(
-                    map,
-                    map.length,
-                    map[0].length,
-                    newM.position,
-                    new Set([`${giver.position.y},${giver.position.x}`]),
-                    new Set(Object.keys(tileCosts) as TileType[])
-                  );
-                  mission.path = pathToGiver ?? [];
-                }
-              } else if (mission.phase === "return") {
-                // Missione consegnata
-                mission.completedAt = time;
-              }
-            }
-          }
-        });
-
-        next[newM.id] = newM;
+        next[updated.id] = updated;
       });
 
       return next;
     });
-  }, [time, entities, map]);
+  }, [time, fixedEntities, map]);
 
   return (
     <div className="flex h-screen flex-col">
       {/* Barra sopra */}
       <div className="flex h-16 items-center bg-gray-800 p-4 text-white">
         <h1 className="text-xl font-bold">Partita</h1>
-        <button>Pause</button>
-        <button>Play</button>
         <div className="ml-auto flex flex-row gap-1">
           <button
             className="w-full rounded bg-red-600 px-3 py-2 hover:bg-red-500"
@@ -307,43 +134,21 @@ export default function GamePage({
                 const x = i % config.width;
 
                 const entity = tile.fixedEntityId
-                  ? entities[tile.fixedEntityId]
+                  ? fixedEntities[tile.fixedEntityId]
                   : undefined;
                 const mobilesHere = Object.values(mobileEntities).filter(
                   (m) => m.position.y === y && m.position.x === x
                 );
 
-                const tooltip = [
-                  tile.type,
-                  entity?.type?.toUpperCase(),
-                  mobilesHere.length
-                    ? mobilesHere
-                        .map((m) =>
-                          m.type === "hero"
-                            ? "h"
-                            : m.type === "adventurer"
-                            ? "a"
-                            : m.type === "civilian"
-                            ? "c"
-                            : "m"
-                        )
-                        .join(", ")
-                    : null,
-                ]
-                  .filter(Boolean)
-                  .join(" | ");
-
                 return (
                   <div
                     key={i}
                     className={`w-6 h-6 border flex items-center justify-center relative cursor-pointer ${
-                      selectedCell?.y === Math.floor(i / config.width) &&
-                      selectedCell?.x === i % config.width
+                      selectedCell?.y === y && selectedCell?.x === x
                         ? "ring-2 ring-yellow-400"
                         : ""
                     }`}
                     style={{ backgroundColor: tileColors[tile.type] }}
-                    title={tooltip}
                     onClick={() => setSelectedCell({ y, x })}
                   >
                     {entity && (
@@ -416,13 +221,12 @@ export default function GamePage({
         </div>
       </div>
 
-      {/* Sidebar bottom */}
       <SidebarBottom
         tile={selectedCell ? map[selectedCell.y][selectedCell.x] : undefined}
         tilePosition={selectedCell || undefined}
         fixedEntities={
           selectedCell
-            ? Object.values(entities).filter(
+            ? Object.values(fixedEntities).filter(
                 (e) =>
                   e.position.y === selectedCell.y &&
                   e.position.x === selectedCell.x
@@ -438,7 +242,7 @@ export default function GamePage({
               )
             : []
         }
-        time={time} // passiamo il tick corrente per missioni concluse, ti servirà
+        time={time}
       />
     </div>
   );

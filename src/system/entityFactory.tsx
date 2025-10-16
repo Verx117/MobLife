@@ -1,8 +1,6 @@
-import type { FixedEntity } from "../assets/tileType";
-import type { MobileEntity } from "../assets/entitiesType";
+import type { MobileEntity, FixedEntity } from "../assets/entitiesType";
 
 // Genera tutte le entità mobili iniziali partendo dalle entità fisse
-
 export function createMobileEntities(
   entities: Record<string, FixedEntity>
 ): Record<string, MobileEntity> {
@@ -15,8 +13,8 @@ export function createMobileEntities(
     newEntities[id] = {
       id,
       type: "hero",
-      position: firstCity.position,
-      missions: [],
+      position: { ...firstCity.position },
+      missionIds: [],
     };
   }
 
@@ -28,8 +26,8 @@ export function createMobileEntities(
       newEntities[id] = {
         id,
         type: "adventurer",
-        position: city.position,
-        missions: [],
+        position: { ...city.position },
+        missionIds: [],
       };
     });
 
@@ -41,8 +39,8 @@ export function createMobileEntities(
       newEntities[id] = {
         id,
         type: "civilian",
-        position: town.position,
-        missions: [],
+        position: { ...town.position },
+        missionIds: [],
       };
     });
 
@@ -55,8 +53,8 @@ export function createMobileEntities(
         newEntities[id] = {
           id,
           type: "monsters",
-          position: dungeon.position,
-          missions: [],
+          position: { ...dungeon.position },
+          missionIds: [],
         };
       }
     });

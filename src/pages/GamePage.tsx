@@ -1,7 +1,12 @@
+// pages/GamePage.tsx
 import { useEffect, useMemo, useState } from "react";
 import { generateMap, type Tile } from "../utils/mapGenerator";
-import { tileColors, type FixedEntity } from "../assets/tileType";
-import type { MobileEntity } from "../assets/entitiesType";
+import { tileColors } from "../assets/tileType";
+import type {
+  MobileEntity,
+  Mission,
+  FixedEntity,
+} from "../assets/entitiesType";
 
 import SidebarBottom from "../components/Sidebarbottom";
 import {
@@ -44,50 +49,80 @@ export default function GamePage({
   >({});
   const [fixedEntities, setFixedEntities] =
     useState<Record<string, FixedEntity>>(initialEntities);
+  const [missionRegistry, setMissionRegistry] = useState<
+    Record<string, Mission>
+  >({});
 
-  // Tick globale
+  // tick loop
   useEffect(() => {
     if (!isRunning) return;
     const interval = setInterval(() => setTime((t) => t + 1), 1000);
     return () => clearInterval(interval);
   }, [isRunning]);
 
-  // Inizializzazione entità mobili al tick 1
+  // inizializza entità mobili
   useEffect(() => {
     if (time === 1 && initialEntities) {
       setMobileEntities(createMobileEntities(initialEntities));
     }
   }, [time, initialEntities]);
 
-  // Generazione missioni fisse ogni 30 tick
+  // genera missioni per entità fisse
   useEffect(() => {
-    setFixedEntities((prev) => assignMissionsToFixedEntities(prev, map, time));
-  }, [time, map]);
+    const { updatedEntities, updatedRegistry } = assignMissionsToFixedEntities(
+      fixedEntities,
+      missionRegistry,
+      map,
+      time
+    );
+    setFixedEntities(updatedEntities);
+    setMissionRegistry(updatedRegistry);
+  }, [time]);
 
-  // Movimento e missioni con fasi pickup/execute/return
+  // muove entità e aggiorna missioni
   useEffect(() => {
     setMobileEntities((prev) => {
       const next: Record<string, MobileEntity> = {};
+      let updatedRegistry = { ...missionRegistry };
+      let updatedFixed = { ...fixedEntities };
 
       Object.values(prev).forEach((m) => {
-        let updated = { ...m, missions: m.missions ?? [] };
+        let current = { ...m };
 
-        // 1. Assegnazione missioni dai giver
-        updated = assignMissionIfNeeded(updated, fixedEntities, map, time);
+        const moveResult = updateMovement(
+          current,
+          updatedFixed,
+          updatedRegistry,
+          map,
+          time
+        );
+        current = moveResult.updatedMobile;
+        updatedRegistry = moveResult.updatedRegistry;
 
-        // 2. Movimento missioni attive
-        updated = updateMovement(updated, fixedEntities, map, time);
+        if (time % 10 === 0) {
+          const assignResult = assignMissionIfNeeded(
+            current,
+            updatedFixed,
+            updatedRegistry,
+            map,
+            time
+          );
+          current = assignResult.updatedMobile;
+          updatedFixed = assignResult.updatedEntities;
+          updatedRegistry = assignResult.updatedRegistry;
+        }
 
-        next[updated.id] = updated;
+        next[current.id] = current;
       });
 
+      setFixedEntities(updatedFixed);
+      setMissionRegistry(updatedRegistry);
       return next;
     });
-  }, [time, fixedEntities, map]);
+  }, [time]);
 
   return (
     <div className="flex h-screen flex-col">
-      {/* Barra sopra */}
       <div className="flex h-16 items-center bg-gray-800 p-4 text-white">
         <h1 className="text-xl font-bold">Partita</h1>
         <div className="ml-auto flex flex-row gap-1">
@@ -182,41 +217,6 @@ export default function GamePage({
                 );
               })}
             </div>
-
-            {/* Overlay SVG per linee */}
-            <svg
-              className="absolute top-0 left-0 pointer-events-none"
-              width={config.width * 24}
-              height={config.height * 24}
-            >
-              {Object.values(mobileEntities).flatMap((m) =>
-                (m.missions ?? [])
-                  .filter(
-                    (mission) =>
-                      !mission.completedAt &&
-                      mission.path &&
-                      mission.path.length > 0
-                  )
-                  .map((mission) => {
-                    const [ny, nx] = mission.path![0];
-                    const startX = m.position.x * 24 + 12;
-                    const startY = m.position.y * 24 + 12;
-                    const endX = nx * 24 + 12;
-                    const endY = ny * 24 + 12;
-                    return (
-                      <line
-                        key={m.id + mission.id}
-                        x1={startX}
-                        y1={startY}
-                        x2={endX}
-                        y2={endY}
-                        stroke="black"
-                        strokeWidth={2}
-                      />
-                    );
-                  })
-              )}
-            </svg>
           </div>
         </div>
       </div>
